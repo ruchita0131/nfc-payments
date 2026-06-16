@@ -2,6 +2,40 @@
 
 A secure, offline-first NFC payment system built as a full-stack portfolio project — demonstrating cryptographic double-spend prevention, tiered KYC limits, and real phone-to-phone NFC tap payments.
 
+## 📱 App Screenshots
+
+### Android App (Native Kotlin)
+<p align="center">
+  <img src="docs/screenshots/android_01_login.png" width="23%" />
+  <img src="docs/screenshots/android_02_wallet.png" width="23%" />
+  <img src="docs/screenshots/android_03_tap.png" width="23%" />
+  <img src="docs/screenshots/android_04_success.png" width="23%" />
+</p>
+
+### Web Dashboard
+<details>
+<summary>Click to view Web Dashboard Screenshots</summary>
+<br>
+
+**1. Dashboard & KYC Registration**
+<p align="center">
+  <img src="docs/screenshots/web_03_dashboard.png" width="48%" />
+  <img src="docs/screenshots/web_02_register_kyc.png" width="48%" />
+</p>
+
+**2. Wallet & NFC Simulator**
+<p align="center">
+  <img src="docs/screenshots/web_05_wallet_loaded.png" width="48%" />
+  <img src="docs/screenshots/web_06_tap.png" width="48%" />
+</p>
+
+**3. Offline Transaction Sync**
+<p align="center">
+  <img src="docs/screenshots/web_07_tap_result.png" width="48%" />
+  <img src="docs/screenshots/web_08_transactions.png" width="48%" />
+</p>
+</details>
+
 ---
 
 ## 🏗️ Architecture
