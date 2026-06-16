@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Allows cleartext HTTP traffic to local IP addresses only.
+    Required because our dev backend runs on http (not https).
+    In production you would use HTTPS and remove this file.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Android Emulator localhost alias -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Local network — covers 192.168.x.x, 10.x.x.x -->
+        <domain includeSubdomains="false">192.168.1.1</domain>
+        <domain includeSubdomains="false">192.168.1.20</domain>
+        <domain includeSubdomains="false">192.168.0.1</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    APDU Service descriptor for HCE (Host Card Emulation).
+
+    When Bob's NFC reader sends a SELECT AID command with AID = F06E666370617931,
+    Android routes all subsequent APDUs to PaymentHCEService.
+
+    This is identical in concept to how a Visa payWave card declares its AID (A0000000031010).
+    We use the F0 prefix (custom / proprietary AID range) since this is not a real payment network.
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/hce_service_description"
+    android:requireDeviceUnlock="false">
+
+    <aid-group
+        android:category="payment"
+        android:description="@string/hce_service_description">
+        <!--
+            AID: F0 6E 66 63 70 61 79 31
+            Decoded: F0 (custom) + "nfcpay1" in ASCII hex
+        -->
+        <aid-filter android:name="F06E666370617931" />
+    </aid-group>
+
+</host-apdu-service>

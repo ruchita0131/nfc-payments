@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NFC Pay</string>
+    <!-- Shown in Android Settings → NFC → Contactless Payments -->
+    <string name="hce_service_description">NFC Pay — Offline Payments</string>
+</resources>
+

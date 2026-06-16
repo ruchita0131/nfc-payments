@@ -1,0 +1,33 @@
+# Backend
+node_modules/
+dist/
+build/
+*.js.map
+.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Android build outputs
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+*.keystore
+
+# Test coverage
+coverage/

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NFC Pay — Offline Payment System</title>
+  <meta name="description" content="Offline NFC Payment System inspired by RBI e-Rupee and Visa payWave. HMAC-signed tokens, 4-layer double-spend prevention, real-time reconciliation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">NFC<strong>Pay</strong></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-view="dashboard" id="nav-dashboard">
+        <span class="nav-icon">▣</span> Dashboard
+      </a>
+      <a href="#" class="nav-item" data-view="wallet" id="nav-wallet">
+        <span class="nav-icon">◈</span> Wallet
+      </a>
+      <a href="#" class="nav-item" data-view="simulate" id="nav-simulate">
+        <span class="nav-icon">⟳</span> Simulate Tap
+      </a>
+      <a href="#" class="nav-item" data-view="transactions" id="nav-transactions">
+        <span class="nav-icon">≡</span> Transactions
+      </a>
+      <a href="#" class="nav-item" data-view="architecture" id="nav-architecture">
+        <span class="nav-icon">◉</span> Architecture
+      </a>
+    </nav>
+
+    <div class="sidebar-user" id="sidebar-user">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name-display">Not logged in</div>
+        <div class="user-role" id="user-kyc-display">Tier 0</div>
+      </div>
+      <button class="logout-btn" id="logout-btn" title="Logout">↪</button>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ── -->
+  <main class="main" id="main">
+
+    <!-- ═══════════════════════════════════════════════════════
+         AUTH OVERLAY
+    ════════════════════════════════════════════════════════ -->
+    <div class="auth-overlay" id="auth-overlay">
+      <div class="auth-card">
+        <div class="auth-header">
+          <span class="logo-icon large">⬡</span>
+          <h1>NFC<strong>Pay</strong></h1>
+          <p>Offline payments, real cryptography.</p>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tab-login">Login</button>
+          <button class="auth-tab" id="tab-register">Register</button>
+        </div>
+
+        <form id="auth-form">
+          <div class="field" id="kyc-field" style="display:none">
+            <label for="auth-kyc">KYC Tier (Limits Offline Spending)</label>
+            <select id="auth-kyc" class="form-select">
+              <option value="0">Tier 0 (Phone only) — ₹500 limit</option>
+              <option value="1">Tier 1 (Aadhaar) — ₹2000 limit</option>
+              <option value="2">Tier 2 (Full KYC) — ₹5000 limit</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="auth-username">Username</label>
+            <input type="text" id="auth-username" placeholder="alice" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+          <div class="field" id="register-only" style="display:none">
+            <label for="auth-device">Device ID <span class="hint">(auto-generated)</span></label>
+            <input type="text" id="auth-device" readonly />
+          </div>
+          <div class="error-banner" id="auth-error" style="display:none"></div>
+          <button type="submit" class="btn btn-primary full-width" id="auth-submit">Login</button>
+        </form>
+
+        <p class="auth-demo-hint">
+          Demo: register <code>alice</code> and <code>bob</code>, then simulate a tap.
+        </p>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DASHBOARD VIEW
+    ════════════════════════════════════════════════════════ -->
+    <section class="view active" id="view-dashboard">
+      <div class="view-header">
+        <h2>Dashboard</h2>
+        <p class="view-subtitle">System-wide statistics</p>
+      </div>
+
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card" id="stat-users">
+          <div class="stat-icon users-icon">👤</div>
+          <div class="stat-value" id="stat-total-users">—</div>
+          <div class="stat-label">Registered Users</div>
+        </div>
+        <div class="stat-card" id="stat-settled">
+          <div class="stat-icon settled-icon">✓</div>
+          <div class="stat-value" id="stat-settled-txns">—</div>
+          <div class="stat-label">Settled Transactions</div>
+        </div>
+        <div class="stat-card" id="stat-rejected">
+          <div class="stat-icon rejected-icon">✗</div>
+          <div class="stat-value" id="stat-rejected-txns">—</div>
+          <div class="stat-label">Rejected (Double-Spend)</div>
+        </div>
+        <div class="stat-card highlight" id="stat-volume">
+          <div class="stat-icon volume-icon">₹</div>
+          <div class="stat-value" id="stat-volume">—</div>
+          <div class="stat-label">Total Volume</div>
+        </div>
+      </div>
+
+      <div class="security-layers">
+        <h3>Double-Spend Prevention — 4 Layers Active</h3>
+        <div class="layers-grid">
+          <div class="layer-card">
+            <div class="layer-num">L1</div>
+            <div class="layer-content">
+              <div class="layer-title">Spending Counter</div>
+              <div class="layer-desc">Each (userId, counter) pair recorded in <code>seen_counters</code>. Duplicate = instant reject.</div>
+              <div class="layer-status active">ACTIVE</div>
+            </div>
+          </div>
+          <div class="layer-card">
+            <div class="layer-num">L2</div>
+            <div class="layer-content">
+              <div class="layer-title">Offline Cap + Expiry</div>
+              <div class="layer-desc">Dynamic KYC-tiered hard cap. 24h token TTL forces resync. Bounds worst-case loss.</div>
+              <div class="layer-status active">ACTIVE</div>
+            </div>
+          </div>
+          <div class="layer-card">
+            <div class="layer-num">L3</div>
+            <div class="layer-content">
+              <div class="layer-title">Nonce Challenge-Response</div>
+              <div class="layer-desc">Bob's nonce + deviceId embedded in signed payload. Replay to different receiver = rejected.</div>
+              <div class="layer-status active">ACTIVE</div>
+            </div>
+          </div>
+          <div class="layer-card">
+            <div class="layer-num">L4</div>
+            <div class="layer-content">
+              <div class="layer-title">Mutual Receipts</div>
+              <div class="layer-desc">Bob's ECDSA receipt required to settle. Neither party can unilaterally deny.</div>
+              <div class="layer-status active">ACTIVE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         WALLET VIEW
+    ════════════════════════════════════════════════════════ -->
+    <section class="view" id="view-wallet">
+      <div class="view-header">
+        <h2>Wallet</h2>
+        <p class="view-subtitle">Balance & token management</p>
+      </div>
+
+      <div class="wallet-grid">
+        <!-- Balance card -->
+        <div class="balance-card">
+          <div class="balance-label">Available Balance</div>
+          <div class="balance-amount" id="wallet-balance">₹0.00</div>
+          <div class="balance-sub">
+            <span class="offline-cap" id="wallet-offline-cap">Offline cap: ₹---</span>
+            <button class="btn btn-sm btn-ghost" id="refresh-balance-btn">↺ Refresh</button>
+          </div>
+        </div>
+
+        <!-- Load form -->
+        <div class="card">
+          <h3 class="card-title">Top-Up Wallet</h3>
+          <form id="load-form">
+            <div class="field">
+              <label for="load-amount">Amount (₹)</label>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">₹</span>
+                <input type="number" id="load-amount" min="1" max="10000" step="1" placeholder="500" required />
+              </div>
+            </div>
+            <div class="quick-amounts">
+              <button type="button" class="quick-btn" data-amount="100">₹100</button>
+              <button type="button" class="quick-btn" data-amount="200">₹200</button>
+              <button type="button" class="quick-btn" data-amount="500">₹500</button>
+              <button type="button" class="quick-btn" data-amount="1000">₹1,000</button>
+            </div>
+            <div class="error-banner" id="load-error" style="display:none"></div>
+            <div class="success-banner" id="load-success" style="display:none"></div>
+            <button type="submit" class="btn btn-primary full-width" id="load-submit">
+              Load ₹<span id="load-btn-amount">—</span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Active token -->
+      <div class="card token-card" id="token-card" style="display:none">
+        <h3 class="card-title">Active Offline Token <span class="badge badge-green">VALID</span></h3>
+        <div class="token-grid" id="token-display"></div>
+        <details class="token-raw">
+          <summary>Raw JSON (HMAC-signed payload)</summary>
+          <pre class="code-block" id="token-raw-json"></pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SIMULATE TAP VIEW
+    ════════════════════════════════════════════════════════ -->
+    <section class="view" id="view-simulate">
+      <div class="view-header">
+        <h2>Simulate NFC Tap</h2>
+        <p class="view-subtitle">End-to-end tap simulation without physical hardware</p>
+      </div>
+
+      <div class="tap-flow">
+        <!-- Step 1: Setup -->
+        <div class="step-card active" id="step-1">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Setup Payer & Receiver</h3>
+            <div class="field-row">
+              <div class="field">
+                <label for="tap-payer">Payer (Alice)</label>
+                <input type="text" id="tap-payer" placeholder="alice" />
+              </div>
+              <div class="tap-arrow">⟶</div>
+              <div class="field">
+                <label for="tap-receiver">Receiver (Bob)</label>
+                <input type="text" id="tap-receiver" placeholder="bob" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="tap-amount">Amount (₹)</label>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">₹</span>
+                <input type="number" id="tap-amount" min="1" step="1" placeholder="50" />
+              </div>
+              <div class="field-hint" id="tap-cap-hint">Max determined by KYC Tier</div>
+            </div>
+            <button class="btn btn-primary" id="start-tap-btn">
+              ⟳ Start Tap
+            </button>
+          </div>
+        </div>
+
+        <!-- Protocol visualisation -->
+        <div class="protocol-flow" id="protocol-flow" style="display:none">
+          <div class="protocol-step" id="proto-1">
+            <div class="proto-label">Bob → Alice</div>
+            <div class="proto-msg" id="proto-msg-1">Generating nonce challenge...</div>
+            <div class="proto-code" id="proto-code-1" style="display:none"></div>
+          </div>
+          <div class="protocol-arrow">↓</div>
+          <div class="protocol-step" id="proto-2">
+            <div class="proto-label">Alice → Bob</div>
+            <div class="proto-msg" id="proto-msg-2">Waiting for nonce...</div>
+            <div class="proto-code" id="proto-code-2" style="display:none"></div>
+          </div>
+          <div class="protocol-arrow">↓</div>
+          <div class="protocol-step" id="proto-3">
+            <div class="proto-label">Bob → Alice</div>
+            <div class="proto-msg" id="proto-msg-3">Waiting for payment...</div>
+            <div class="proto-code" id="proto-code-3" style="display:none"></div>
+          </div>
+          <div class="protocol-arrow">↓</div>
+          <div class="protocol-step" id="proto-4">
+            <div class="proto-label">⟳ Backend Reconciliation</div>
+            <div class="proto-msg" id="proto-msg-4">Pending...</div>
+            <div class="proto-code" id="proto-code-4" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div class="tap-result" id="tap-result" style="display:none"></div>
+
+        <!-- Double-spend test -->
+        <div class="card double-spend-card" id="double-spend-card" style="display:none">
+          <h3 class="card-title">⚠️ Test Double-Spend Attack</h3>
+          <p>Replay the same transaction with the same counter. The backend should reject it with <code>DUPLICATE_COUNTER</code>.</p>
+          <button class="btn btn-warning" id="test-double-spend-btn">Replay Attack →</button>
+          <div class="double-spend-result" id="double-spend-result" style="display:none"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         TRANSACTIONS VIEW
+    ════════════════════════════════════════════════════════ -->
+    <section class="view" id="view-transactions">
+      <div class="view-header">
+        <h2>Transaction History</h2>
+        <p class="view-subtitle">Settled and rejected transactions</p>
+      </div>
+
+      <div class="txn-controls">
+        <button class="btn btn-sm btn-ghost" id="refresh-txns-btn">↺ Refresh</button>
+      </div>
+
+      <div class="txn-table-wrap">
+        <table class="txn-table" id="txn-table">
+          <thead>
+            <tr>
+              <th>Direction</th>
+              <th>Counterparty</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Tapped At</th>
+              <th>Settled At</th>
+              <th>Rejection Reason</th>
+            </tr>
+          </thead>
+          <tbody id="txn-tbody">
+            <tr><td colspan="7" class="table-empty">No transactions yet. Simulate a tap first.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         ARCHITECTURE VIEW
+    ════════════════════════════════════════════════════════ -->
+    <section class="view" id="view-architecture">
+      <div class="view-header">
+        <h2>Architecture</h2>
+        <p class="view-subtitle">System design & interview reference</p>
+      </div>
+
+      <div class="arch-grid">
+        <div class="card">
+          <h3 class="card-title">Token Payload (HMAC-SHA256 signed)</h3>
+          <pre class="code-block">{
+  "userId": "alice",
+  "deviceId": "alice_pixel_8",
+  "issuedBalancePaise": 50000,       // ₹500
+  "offlineLimitPaise": 500000,        // ₹5000 — offline cap
+  "offlineRemainingPaise": 500000,
+  "counter": 5,                      // monotonically increasing
+  "expiresAt": "2025-05-03T00:00Z",  // 24h TTL
+  "issuedAt": "2025-05-02T00:00Z",
+  "sessionPublicKey": "base64...",   // ECDSA pubkey for receipts
+  "hmac": "base64_sha256..."         // signs all above fields
+}</pre>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">NFC Tap Protocol (3 messages)</h3>
+          <pre class="code-block">// 1. Bob → Alice (nonce challenge)
+{
+  nonce: "a7f3b9c2...",       // SecureRandom, 32 bytes
+  receiverDeviceId: "bob_phone"
+}
+
+// 2. Alice → Bob (signed payment)
+{
+  payerUserId: "alice",
+  payerDeviceId: "alice_pixel_8",
+  receiverDeviceId: "bob_phone",
+  amountPaise: 5000,           // ₹50
+  counter: 6,                  // incremented
+  nonce: "a7f3b9c2...",        // echoed back
+  tokenExpiresAt: "...",
+  hmac: "..."                  // HMAC over all above
+}
+
+// 3. Bob → Alice (mutual receipt)
+{
+  receivedPaise: 5000,
+  fromCounter: 6,
+  payerUserId: "alice",
+  receiverDeviceId: "bob_phone",
+  nonce: "a7f3b9c2...",
+  sig: "ecdsa_sig..."          // Bob's Keystore key
+}</pre>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Production Upgrade Path</h3>
+          <div class="upgrade-list">
+            <div class="upgrade-item">
+              <div class="upgrade-title">HMAC → ECDSA (secp256k1)</div>
+              <div class="upgrade-desc">HMAC is symmetric — only the server can verify. ECDSA lets receiver phones verify offline without the signing key. Identical to how Bitcoin lets any node verify a transaction. EMV uses ECDSA for the same reason.</div>
+              <div class="upgrade-badge">Documented</div>
+            </div>
+            <div class="upgrade-item">
+              <div class="upgrade-title">Android Keystore → StrongBox</div>
+              <div class="upgrade-desc">StrongBox provides hardware-bound keys with <code>setMaxUsageCount(n)</code>, making keys non-exportable and physically isolated in a secure element. Skipped due to manufacturer fragmentation (Samsung vs Pixel vs others).</div>
+              <div class="upgrade-badge">Documented</div>
+            </div>
+            <div class="upgrade-item">
+              <div class="upgrade-title">Device Attestation</div>
+              <div class="upgrade-desc">Google Play Integrity API (or SafetyNet) verifies the device hasn't been rooted and the app hasn't been tampered with. Needed before issuing high-limit tokens in production.</div>
+              <div class="upgrade-badge">Documented</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">The Interview Answer</h3>
+          <blockquote class="interview-quote">
+            "The ₹200 limit is RBI's regulatory choice for e-Rupee, not a technical constraint. My system uses a tiered limit based on KYC level — higher verification unlocks higher offline spending. The nonce binding and mutual receipt system means any double-spend attempt is cryptographically traceable to the payer, which justifies a higher limit than anonymous token systems. The limit is a risk dial, not a ceiling."
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
