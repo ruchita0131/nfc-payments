@@ -143,13 +143,19 @@ class PaymentHCEService : HostApduService() {
                 put("tokenExpiresAt",   expiresAt)
             }
 
-            // HMAC over sorted canonical JSON
-            // Note: In HMAC mode, the backend re-derives the real HMAC on sync.
-            // The device signs with its cached HMAC key (received from server).
-            // Production: replace with ECDSA so receiver can verify offline.
-            val hmacKey = Base64.getDecoder().decode(prefs.getString("hmac_key", "") ?: "")
-            val hmacSig = HMACHelper.hmacSha256(paymentPayload.toString(), hmacKey)
-            paymentPayload.put("hmac", hmacSig)
+            // ECDSA over sorted canonical JSON
+            // The device signs with its private ECDSA key (Layer 3).
+            // Backend verifies this against Alice's public key.
+            val paymentCanonical = JSONObject()
+            paymentPayload.keys().asSequence().sorted().forEach { key -> paymentCanonical.put(key, paymentPayload.get(key)) }
+            
+            val keyPair = HMACHelper.generateOrGetReceiptKeyPair(userId)
+            val signer = java.security.Signature.getInstance("SHA256withECDSA")
+            signer.initSign(keyPair.private)
+            signer.update(paymentCanonical.toString().toByteArray())
+            val sig = java.util.Base64.getEncoder().encodeToString(signer.sign())
+            
+            paymentPayload.put("hmac", sig)
 
             // Update local token state
             val updatedToken = JSONObject(tokenJson).apply {

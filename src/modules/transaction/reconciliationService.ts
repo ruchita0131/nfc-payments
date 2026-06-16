@@ -3,7 +3,7 @@ import { config } from '../../config';
 import { logger } from '../../db/logger';
 import { memStore } from '../../db/memStore';
 import {
-  verifyNFCPayment,
+  verifyNFCSignature,
   verifyReceiptSignature,
   SignedNFCPayment,
 } from '../token/tokenService';
@@ -174,11 +174,22 @@ async function settlePostgres(txn: PendingTransaction): Promise<SettlementResult
       return { clientTxnId, status: row.status, rejectionReason: row.rejection_reason, settledAt: row.settled_at?.toISOString() };
     }
 
-    // L3: HMAC
-    if (!verifyNFCPayment(txn.nfcPayload)) return recordRejectionPg(client, txn, 'INVALID_HMAC');
+    // L3: Payer Signature Verification (was HMAC)
+    const payerKeyResult = await client.query('SELECT public_key_b64 FROM device_keys WHERE device_id=$1', [txn.payerDeviceId]);
+    if (!payerKeyResult.rows.length) return recordRejectionPg(client, txn, 'PAYER_NOT_FOUND');
+    if (!verifyNFCSignature(txn.nfcPayload, payerKeyResult.rows[0].public_key_b64)) {
+       return recordRejectionPg(client, txn, 'INVALID_HMAC'); // Or INVALID_SIGNATURE
+    }
 
     // L2: expiry
     if (new Date(txn.nfcPayload.tokenExpiresAt) < new Date()) return recordRejectionPg(client, txn, 'TOKEN_EXPIRED');
+
+    // L2: offline cap
+    const tokenResult = await client.query('SELECT offline_limit_paise FROM offline_tokens WHERE user_id=$1 ORDER BY issued_at DESC LIMIT 1', [txn.payerUserId]);
+    if (tokenResult.rows.length) {
+       const limit = parseInt(tokenResult.rows[0].offline_limit_paise, 10);
+       if (txn.amountPaise > limit) return recordRejectionPg(client, txn, 'OFFLINE_CAP_EXCEEDED');
+    }
 
     // L1: counter
     const counterInsert = await client.query(
@@ -201,6 +212,13 @@ async function settlePostgres(txn: PendingTransaction): Promise<SettlementResult
     if (!receiptValid) return recordRejectionPg(client, txn, 'INVALID_RECEIPT');
 
     const receiverUserId = keyResult.rows[0].user_id;
+
+    const walletResult = await client.query('SELECT balance_paise FROM wallets WHERE user_id=$1 FOR UPDATE', [txn.payerUserId]);
+    const payerBalance = parseInt(walletResult.rows[0]?.balance_paise || '0', 10);
+    if (payerBalance < txn.amountPaise) {
+        return recordRejectionPg(client, txn, 'INSUFFICIENT_BALANCE');
+    }
+
     await client.query('UPDATE wallets SET balance_paise = balance_paise - $1, updated_at=NOW() WHERE user_id=$2', [txn.amountPaise, txn.payerUserId]);
     await client.query('UPDATE wallets SET balance_paise = balance_paise + $1, updated_at=NOW() WHERE user_id=$2', [txn.amountPaise, receiverUserId]);
 
