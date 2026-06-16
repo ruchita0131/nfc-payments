@@ -1,8 +1,8 @@
-# 🔐 Offline NFC Payments
+# Offline NFC Payments
 
-A secure, offline-first NFC payment system built as a full-stack portfolio project — demonstrating cryptographic double-spend prevention, tiered KYC limits, and real phone-to-phone NFC tap payments.
+A secure, offline-first NFC payment system built as a full-stack portfolio project demonstrating cryptographic double-spend prevention, tiered KYC limits, and offline phone-to-phone NFC tap payments.
 
-## 📱 App Screenshots
+## App Screenshots
 
 ### Android App (Native Kotlin)
 <p align="center">
@@ -38,7 +38,7 @@ A secure, offline-first NFC payment system built as a full-stack portfolio proje
 
 ---
 
-## 🏗️ Architecture
+## System Architecture
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -67,20 +67,20 @@ A secure, offline-first NFC payment system built as a full-stack portfolio proje
 
 ---
 
-## 🔒 4-Layer Double-Spend Prevention
+## 4-Layer Double-Spend Prevention
 
 | Layer | Mechanism | What it catches |
 |-------|-----------|-----------------|
-| **L1** | Monotonic counter (server-side) | Alice replaying the same counter twice |
+| **L1** | Monotonic counter (server-side) | Replaying the same counter twice |
 | **L2** | KYC-tiered offline cap + 24h token TTL | Bounds worst-case exposure window |
-| **L3** | Nonce challenge-response | Replay attacks — same payload, different receiver |
-| **L4** | Mutual ECDSA receipt (Android Keystore) | Disputes — cryptographic proof of intent |
+| **L3** | Nonce challenge-response | Replay attacks (same payload, different receiver) |
+| **L4** | Mutual ECDSA receipt (Android Keystore) | Disputes (cryptographic proof of intent) |
 
-> **Interview answer:** *"The ₹200 limit is RBI's regulatory choice for e-Rupee, not a technical constraint. My system uses a tiered limit based on KYC level — higher verification unlocks higher offline spending. The nonce binding and mutual receipt system means any double-spend attempt is cryptographically traceable to the payer, which justifies a higher limit than anonymous token systems. The limit is a risk dial, not a ceiling."*
+> **Design Choice:** The offline limit acts as a risk dial. Higher KYC verification unlocks higher offline spending limits. The nonce binding and mutual receipt system ensures any double-spend attempt is cryptographically traceable to the payer, justifying a dynamic limit rather than a static regulatory ceiling.
 
 ---
 
-## 🧰 Tech Stack
+## Technology Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -93,9 +93,9 @@ A secure, offline-first NFC payment system built as a full-stack portfolio proje
 
 ---
 
-## 💳 KYC-Tiered Offline Limits
+## KYC-Tiered Offline Limits
 
-The offline spending limit is not hardcoded — it's a **risk dial** tied to identity verification:
+The offline spending limit scales dynamically based on identity verification:
 
 | Tier | Verification | Offline Limit |
 |------|-------------|---------------|
@@ -103,11 +103,11 @@ The offline spending limit is not hardcoded — it's a **risk dial** tied to ide
 | 1 | Aadhaar linked | ₹2,000 |
 | 2 | Full KYC + bank account | ₹5,000 |
 
-The limit is embedded inside the HMAC-signed token at issuance — **the phone cannot modify it**.
+The limit is embedded inside the HMAC-signed token at issuance, preventing local tampering.
 
 ---
 
-## 🚀 Running Locally
+## Running Locally
 
 ### Prerequisites
 - Node.js 18+
@@ -159,11 +159,11 @@ Open **http://localhost:3000** in any browser.
 - Tap to Pay tab → switch to **Receive (Reader)**
 - Enter amount (e.g. `50`) → tap **Start NFC Reader**
 
-**Tap the back of Phone 1 against Phone 2** — the 3-message APDU protocol runs, mutual receipts are exchanged, and the transaction is queued for backend sync.
+**Tap the back of Phone 1 against Phone 2.** The 3-message APDU protocol runs, mutual receipts are exchanged, and the transaction is queued for backend sync.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 nfc-payments/
@@ -195,7 +195,7 @@ nfc-payments/
 
 ---
 
-## 🔑 Environment Variables
+## Environment Variables
 
 Copy `.env.example` to `.env` and configure:
 
@@ -218,15 +218,15 @@ TOKEN_TTL_HOURS=24
 
 ---
 
-## 🛡️ Security Notes
+## Security Considerations
 
-- **HMAC-SHA256** is symmetric — only the server can issue valid tokens. The device trusts the token received from its last online session.
-- **ECDSA (Android Keystore)** is asymmetric — the private key never leaves the secure hardware. In production, receiving phones could verify payments offline without the signing key, exactly like EMV chip cards.
-- **StrongBox upgrade path:** Replace `KeyGenParameterSpec` with `.setIsStrongBoxBacked(true)` for hardware-isolated keys on supported devices.
-- **Nonce binding** ensures every NFC payload is cryptographically tied to a specific receiver — you cannot replay the same tap payload to a different person.
+- **HMAC-SHA256:** Symmetric signature used for token issuance. Only the server can issue valid tokens. The client trusts the token received from the last authenticated online session.
+- **ECDSA (Android Keystore):** Asymmetric signatures for mutual receipts. The private key never leaves secure hardware. Allows offline payment verification by the receiver.
+- **Hardware Isolation:** Replace `KeyGenParameterSpec` with `.setIsStrongBoxBacked(true)` to enforce hardware-isolated keys on compatible devices.
+- **Nonce Binding:** Cryptographically ties every NFC payload to a specific receiver, preventing replay attacks.
 
 ---
 
-## 👩‍💻 Author
+## Author
 
 **Ruchita** — [github.com/ruchita0131](https://github.com/ruchita0131)

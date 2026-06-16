@@ -1,11 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyJWT } from '../modules/auth/authService';
 
-// Extend Express Request to carry user info
 declare global {
   namespace Express {
     interface Request {
-      user?: { sub: string; username: string };
+      user?: { sub: string; username: string; kycTier: number };
     }
   }
 }
@@ -20,7 +19,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = authHeader.slice(7);
   try {
     const payload = verifyJWT(token);
-    req.user = { sub: payload.sub, username: payload.username };
+    req.user = { sub: payload.sub, username: payload.username, kycTier: payload.kycTier };
     next();
   } catch {
     res.status(401).json({ success: false, error: 'Invalid or expired token' });
